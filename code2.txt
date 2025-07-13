@@ -1,0 +1,281 @@
+Here’s a complete Node.js + Express backend API for Self Signup, which includes:
+
+
+
+
+
+✅ Features:
+
+
+
+
+
+Required fields: firstName, lastName, motherName, dob, acceptTerms
+Optional fields: middleName, whatsappOptIn
+Validations for required fields
+Date of Birth format validation
+Terms and conditions must be accepted
+Clean and modular structure
+
+
+
+
+
+
+
+
+
+
+📁 Project Setup
+
+
+
+
+
+If not already set up, install dependencies:
+
+npm install express body-parser dotenv
+
+
+
+
+
+
+
+
+
+📁 File: 
+
+signup.js
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+
+
+// Middleware to validate date
+
+function isValidDate(d) {
+
+  return !isNaN(Date.parse(d));
+
+}
+
+
+
+// Signup route
+
+router.post('/signup', (req, res) => {
+
+  const {
+
+    firstName,
+
+    middleName,
+
+    lastName,
+
+    motherName,
+
+    dob,
+
+    acceptTerms,
+
+    whatsappOptIn,
+
+  } = req.body;
+
+
+
+  // Validate required fields
+
+  if (!firstName || !lastName || !motherName || !dob) {
+
+    return res.status(400).json({ error: 'Missing required fields' });
+
+  }
+
+
+
+  // Validate date
+
+  if (!isValidDate(dob)) {
+
+    return res.status(400).json({ error: 'Invalid date of birth format (expected YYYY-MM-DD)' });
+
+  }
+
+
+
+  // Validate terms acceptance
+
+  if (acceptTerms !== true) {
+
+    return res.status(400).json({ error: 'You must accept terms and conditions' });
+
+  }
+
+
+
+  // Here, you would store user info in DB
+
+  const userData = {
+
+    firstName,
+
+    middleName: middleName || null,
+
+    lastName,
+
+    motherName,
+
+    dob,
+
+    acceptTerms,
+
+    whatsappOptIn: whatsappOptIn === true
+
+  };
+
+
+
+  // Mock response
+
+  res.status(200).json({ message: 'Signup successful', data: userData });
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+📁 File: 
+
+index.js
+
+
+
+const express = require('express');
+
+const bodyParser = require('body-parser');
+
+const signupRoute = require('./signup');
+
+
+
+const app = express();
+
+app.use(bodyParser.json());
+
+
+
+app.use('/api', signupRoute);
+
+
+
+const PORT = 3000;
+
+app.listen(PORT, () => {
+
+  console.log(`Server running on http://localhost:${PORT}`);
+
+});
+
+
+
+
+
+
+
+
+
+📄 Sample 
+
+POST /api/signup
+
+ Request:
+
+
+
+{
+
+  "firstName": "Rajiv",
+
+  "middleName": "K.",
+
+  "lastName": "Kafka",
+
+  "motherName": "Anjali",
+
+  "dob": "1990-05-12",
+
+  "acceptTerms": true,
+
+  "whatsappOptIn": true
+
+}
+
+
+
+
+
+
+
+
+
+✅ Expected Success Response:
+
+
+
+{
+
+  "message": "Signup successful",
+
+  "data": {
+
+    "firstName": "Rajiv",
+
+    "middleName": "K.",
+
+    "lastName": "Kafka",
+
+    "motherName": "Anjali",
+
+    "dob": "1990-05-12",
+
+    "acceptTerms": true,
+
+    "whatsappOptIn": true
+
+  }
+
+}
+
+
+
+
+
+
+
+
+
+🧠 Extra Notes:
+
+
+
+
+
+You can add a real database (MongoDB, PostgreSQL, etc.) to persist user data.
+If needed, OTP or email/mobile validation can follow this signup.
+Use Joi or express-validator for production-level validation.

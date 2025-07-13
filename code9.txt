@@ -1,0 +1,478 @@
+Admin Login Requirements:
+
+
+
+
+
+Admin logs in with:
+Email
+Password
+
+Then must enter an OTP received via:
+✅ Email
+✅ Mobile (SMS)
+
+OTP is sent on every login
+Only after OTP verification, login is successful
+
+
+
+
+
+
+
+
+
+
+📦 Stack Used:
+
+
+
+
+
+Express.js
+bcrypt (password hashing)
+nodemailer (email OTP)
+OTP Generator
+crypto for randomness
+SMS sending is mocked via console.log
+
+
+
+
+
+
+
+
+
+
+📁 Project Structure
+
+
+
+admin-auth-otp/
+
+├── index.js
+
+├── db.js
+
+├── utils/
+
+│   ├── passwordUtils.js
+
+│   ├── sendUtils.js
+
+│   └── otpUtils.js
+
+└── routes/
+
+    └── adminRoutes.js
+
+
+
+
+
+
+
+
+
+📄 db.js – Mock Admin & OTP Store
+
+
+
+const bcrypt = require('bcrypt');
+
+
+
+const admins = {
+
+  "admin@example.com": {
+
+    email: "admin@example.com",
+
+    name: "Admin User",
+
+    mobile: "9876543210",
+
+    passwordHash: bcrypt.hashSync("Admin@123", 10),
+
+    otpVerified: false
+
+  }
+
+};
+
+
+
+const adminOtpStore = {}; // email => { otp, expiresAt }
+
+
+
+module.exports = { admins, adminOtpStore };
+
+
+
+
+
+
+
+
+
+📄 utils/passwordUtils.js
+
+
+
+const bcrypt = require('bcrypt');
+
+
+
+async function hashPassword(password) {
+
+  return await bcrypt.hash(password, 10);
+
+}
+
+
+
+async function comparePassword(raw, hashed) {
+
+  return await bcrypt.compare(raw, hashed);
+
+}
+
+
+
+module.exports = { hashPassword, comparePassword };
+
+
+
+
+
+
+
+
+
+📄 utils/otpUtils.js
+
+
+
+const otpGenerator = require('otp-generator');
+
+
+
+function generateOTP() {
+
+  return otpGenerator.generate(6, {
+
+    digits: true,
+
+    alphabets: false,
+
+    upperCase: false,
+
+    specialChars: false
+
+  });
+
+}
+
+
+
+function isValidOTP(otpData, inputOtp) {
+
+  return otpData && otpData.otp === inputOtp && Date.now() < otpData.expiresAt;
+
+}
+
+
+
+module.exports = { generateOTP, isValidOTP };
+
+
+
+
+
+
+
+
+
+📄 utils/sendUtils.js
+
+
+
+const nodemailer = require('nodemailer');
+
+
+
+const transporter = nodemailer.createTransport({
+
+  service: 'gmail',
+
+  auth: {
+
+    user: process.env.EMAIL_USER,
+
+    pass: process.env.EMAIL_PASS
+
+  }
+
+});
+
+
+
+async function sendEmail(to, subject, text) {
+
+  await transporter.sendMail({
+
+    from: process.env.EMAIL_USER,
+
+    to,
+
+    subject,
+
+    text
+
+  });
+
+}
+
+
+
+function sendSMS(mobile, message) {
+
+  console.log(`SMS to ${mobile}: ${message}`);
+
+}
+
+
+
+module.exports = { sendEmail, sendSMS };
+
+
+
+
+
+
+
+
+
+📄 routes/adminRoutes.js
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+const { admins, adminOtpStore } = require('../db');
+
+const { comparePassword } = require('../utils/passwordUtils');
+
+const { generateOTP, isValidOTP } = require('../utils/otpUtils');
+
+const { sendEmail, sendSMS } = require('../utils/sendUtils');
+
+
+
+// Step 1: Login with Email + Password
+
+router.post('/login-step1', async (req, res) => {
+
+  const { email, password } = req.body;
+
+
+
+  const admin = admins[email];
+
+  if (!admin) return res.status(404).json({ error: 'Admin not found' });
+
+
+
+  const valid = await comparePassword(password, admin.passwordHash);
+
+  if (!valid) return res.status(401).json({ error: 'Incorrect password' });
+
+
+
+  const otp = generateOTP();
+
+  adminOtpStore[email] = {
+
+    otp,
+
+    expiresAt: Date.now() + 5 * 60 * 1000
+
+  };
+
+
+
+  const message = `Your admin OTP is: ${otp}`;
+
+  await sendEmail(email, 'Admin OTP Login', message);
+
+  sendSMS(admin.mobile, message);
+
+
+
+  res.json({ message: 'OTP sent to registered email and mobile' });
+
+});
+
+
+
+// Step 2: Submit OTP to complete login
+
+router.post('/login-step2', (req, res) => {
+
+  const { email, otp } = req.body;
+
+
+
+  const admin = admins[email];
+
+  const otpData = adminOtpStore[email];
+
+
+
+  if (!admin) return res.status(404).json({ error: 'Admin not found' });
+
+  if (!otp || !isValidOTP(otpData, otp)) {
+
+    return res.status(401).json({ error: 'Invalid or expired OTP' });
+
+  }
+
+
+
+  adminOtpStore[email] = null; // Clear OTP after use
+
+  res.json({ message: 'Admin login successful', admin: { name: admin.name, email: admin.email } });
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+📄 index.js – Main App
+
+
+
+require('dotenv').config();
+
+const express = require('express');
+
+const bodyParser = require('body-parser');
+
+const adminRoutes = require('./routes/adminRoutes');
+
+
+
+const app = express();
+
+app.use(bodyParser.json());
+
+
+
+app.use('/api/admin', adminRoutes);
+
+
+
+const PORT = 4000;
+
+app.listen(PORT, () => {
+
+  console.log(`Admin Auth API running at http://localhost:${PORT}`);
+
+});
+
+
+
+
+
+
+
+
+
+🔐 Environment Setup
+
+
+
+
+
+Create a .env file for email:
+
+EMAIL_USER=youremail@gmail.com
+
+EMAIL_PASS=yourpassword
+
+Enable “less secure apps” or use an app-specific password if using Gmail.
+
+
+
+
+
+
+
+
+
+🧪 Sample Login Flow
+
+
+
+
+
+
+
+Step 1: Admin Login with Email + Password
+
+
+
+
+
+POST /api/admin/login-step1
+
+{
+
+  "email": "admin@example.com",
+
+  "password": "Admin@123"
+
+}
+
+➡️ Response: OTP sent to email and mobile
+
+
+
+
+
+
+
+
+
+Step 2: Submit OTP
+
+
+
+
+
+POST /api/admin/login-step2
+
+{
+
+  "email": "admin@example.com",
+
+  "otp": "123456"
+
+}
+
+➡️ Response: Login successful
+

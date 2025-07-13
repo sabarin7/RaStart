@@ -1,0 +1,377 @@
+Doctor App Functionalities
+
+
+
+
+
+Login/Authentication (JWT-based or simple for now)
+Search children by ID or name
+View child vaccine schedule
+Update vaccine record fields:
+productName, batchNumber, manufactureDate, expiryDate, vaccinatedDate, doctorName, hospitalName
+
+
+
+
+
+
+
+
+
+
+
+🛠 Technologies Used
+
+
+
+
+
+Node.js + Express
+Mock DB using JavaScript objects (for now)
+JWT-ready structure (you can plug in auth later)
+
+
+
+
+
+
+
+
+
+
+📁 Project Structure
+
+
+
+doctor-app-api/
+
+│
+
+├── index.js
+
+├── db.js
+
+├── doctorLogic.js
+
+└── routes/
+
+    └── doctorRoutes.js
+
+
+
+
+
+
+
+
+
+📄 File: 
+
+db.js
+
+
+
+// db.js
+
+
+
+const childVaccinationData = {}; // Stores vaccination schedules
+
+const children = {
+
+  "child001": { name: "Baby of Anjali", dob: "2025-06-10", motherName: "Anjali" },
+
+  "child002": { name: "Aarav", dob: "2023-07-20", motherName: "Priya" }
+
+};
+
+
+
+module.exports = { childVaccinationData, children };
+
+
+
+
+
+
+
+
+
+📄 File: 
+
+doctorLogic.js
+
+
+
+const { childVaccinationData } = require('./db');
+
+
+
+function updateVaccineEntry(childId, vaccineName, updateData) {
+
+  const schedule = childVaccinationData[childId];
+
+  if (!schedule) return { error: 'Child schedule not found' };
+
+
+
+  const vaccine = schedule.find(v => v.vaccineName === vaccineName);
+
+  if (!vaccine) return { error: 'Vaccine not found' };
+
+
+
+  // Only these fields can be updated by doctor
+
+  const editableFields = [
+
+    'productName', 'batchNumber', 'manufactureDate',
+
+    'expiryDate', 'vaccinatedDate', 'doctorName', 'hospitalName'
+
+  ];
+
+
+
+  editableFields.forEach(field => {
+
+    if (updateData[field]) {
+
+      vaccine[field] = updateData[field];
+
+    }
+
+  });
+
+
+
+  return { message: 'Vaccine updated', vaccine };
+
+}
+
+
+
+module.exports = { updateVaccineEntry };
+
+
+
+
+
+
+
+
+
+📄 File: 
+
+routes/doctorRoutes.js
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+const { children, childVaccinationData } = require('../db');
+
+const { updateVaccineEntry } = require('../doctorLogic');
+
+
+
+// 1. Get list of children
+
+router.get('/children', (req, res) => {
+
+  res.json({ children });
+
+});
+
+
+
+// 2. Get specific child's schedule
+
+router.get('/child/:childId/schedule', (req, res) => {
+
+  const childId = req.params.childId;
+
+  const schedule = childVaccinationData[childId];
+
+
+
+  if (!schedule) {
+
+    return res.status(404).json({ error: 'Schedule not found for this child' });
+
+  }
+
+
+
+  res.json({ childId, schedule });
+
+});
+
+
+
+// 3. Doctor updates vaccine entry
+
+router.post('/child/:childId/update-vaccine/:vaccineName', (req, res) => {
+
+  const { childId, vaccineName } = req.params;
+
+  const update = req.body;
+
+
+
+  const result = updateVaccineEntry(childId, vaccineName, update);
+
+  if (result.error) return res.status(400).json({ error: result.error });
+
+
+
+  res.json(result);
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+📄 File: 
+
+index.js
+
+
+
+const express = require('express');
+
+const bodyParser = require('body-parser');
+
+const doctorRoutes = require('./routes/doctorRoutes');
+
+
+
+const app = express();
+
+app.use(bodyParser.json());
+
+
+
+app.use('/api/doctor', doctorRoutes);
+
+
+
+const PORT = 4000;
+
+app.listen(PORT, () => {
+
+  console.log(`Doctor App API running at http://localhost:${PORT}`);
+
+});
+
+
+
+
+
+
+
+
+
+🧪 Example API Calls
+
+
+
+
+
+
+
+✅ GET 
+
+/api/doctor/children
+
+
+
+{
+
+  "children": {
+
+    "child001": { "name": "Baby of Anjali", "dob": "2025-06-10", "motherName": "Anjali" }
+
+  }
+
+}
+
+
+
+
+
+
+
+
+
+✅ POST 
+
+/api/doctor/child/child001/update-vaccine/MMR
+
+
+
+{
+
+  "productName": "MMR-Vax",
+
+  "batchNumber": "MMR2345",
+
+  "manufactureDate": "2025-06-01",
+
+  "expiryDate": "2027-06-01",
+
+  "vaccinatedDate": "2026-03-15",
+
+  "doctorName": "Dr. Kumar",
+
+  "hospitalName": "Apollo Hospitals"
+
+}
+
+
+
+
+
+
+
+
+
+✅ Result:
+
+
+
+
+
+This update reflects immediately in the Customer App, since both reference the same schedule data (mock DB for now).
+
+
+
+
+
+
+
+
+
+
+🔒 Optional Next Steps
+
+
+
+
+
+Implement JWT login for doctor
+Connect with MongoDB/Postgres
+Add logs and history tracking (audit trail)
+
+

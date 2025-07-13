@@ -1,0 +1,427 @@
+Below is a complete Node.js + Express API implementation for an Admin Console Page that shows all children created by doctors, with a table of:
+
+
+
+
+
+
+
+
+
+✅ Console Table Columns
+
+
+
+
+
+| Child Name | Date of Birth | Current Vaccine | Next Due Vaccine | Vaccine Product Name | Manufacturer Name | Batch Number | Mfg Date | Expiry Date |
+
+
+
+
+
+
+
+
+
+📁 Folder Structure
+
+
+
+admin-console-api/
+
+├── index.js
+
+├── db.js
+
+├── routes/
+
+│   └── adminConsoleRoutes.js
+
+├── utils/
+
+│   └── vaccineUtils.js
+
+
+
+
+
+
+
+
+
+📄 
+
+db.js
+
+ – Sample In-Memory Data
+
+
+
+const children = {
+
+  "child001": {
+
+    childId: "child001",
+
+    name: "Baby of Anjali",
+
+    dob: "2025-06-10",
+
+    createdByDoctorId: "doc001"
+
+  },
+
+  "child002": {
+
+    childId: "child002",
+
+    name: "Baby of Ramya",
+
+    dob: "2025-05-01",
+
+    createdByDoctorId: "doc002"
+
+  }
+
+};
+
+
+
+const vaccineData = {
+
+  "child001": [
+
+    {
+
+      vaccineName: "BCG",
+
+      dueDate: "2025-06-10",
+
+      vaccinatedDate: "2025-06-10",
+
+      productName: "ImmuVax",
+
+      manufacturer: "BioPharma",
+
+      batchNumber: "BCG2025A",
+
+      manufactureDate: "2025-05-01",
+
+      expiryDate: "2026-05-01"
+
+    },
+
+    {
+
+      vaccineName: "Hep B",
+
+      dueDate: "2025-06-11",
+
+      vaccinatedDate: null,
+
+      productName: null,
+
+      manufacturer: null,
+
+      batchNumber: null,
+
+      manufactureDate: null,
+
+      expiryDate: null
+
+    }
+
+  ],
+
+  "child002": [
+
+    {
+
+      vaccineName: "BCG",
+
+      dueDate: "2025-05-01",
+
+      vaccinatedDate: "2025-05-02",
+
+      productName: "SafeBCG",
+
+      manufacturer: "MedLabs",
+
+      batchNumber: "B2025M1",
+
+      manufactureDate: "2025-04-01",
+
+      expiryDate: "2026-04-01"
+
+    }
+
+  ]
+
+};
+
+
+
+module.exports = { children, vaccineData };
+
+
+
+
+
+
+
+
+
+📄 
+
+utils/vaccineUtils.js
+
+ – Helper to Get Current & Next Vaccines
+
+
+
+function getVaccineStatus(vaccines) {
+
+  const currentVaccine = vaccines
+
+    .filter(v => v.vaccinatedDate)
+
+    .sort((a, b) => new Date(b.vaccinatedDate) - new Date(a.vaccinatedDate))[0] || null;
+
+
+
+  const nextDue = vaccines
+
+    .filter(v => !v.vaccinatedDate)
+
+    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0] || null;
+
+
+
+  return { currentVaccine, nextDue };
+
+}
+
+
+
+module.exports = { getVaccineStatus };
+
+
+
+
+
+
+
+
+
+📄 
+
+routes/adminConsoleRoutes.js
+
+ – Admin API Route
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+const { children, vaccineData } = require('../db');
+
+const { getVaccineStatus } = require('../utils/vaccineUtils');
+
+
+
+// GET: Admin fetches all patients' vaccine info
+
+router.get('/patients-data', (req, res) => {
+
+  const rows = [];
+
+
+
+  Object.values(children).forEach(child => {
+
+    const vaccines = vaccineData[child.childId] || [];
+
+    const { currentVaccine, nextDue } = getVaccineStatus(vaccines);
+
+
+
+    rows.push({
+
+      childName: child.name,
+
+      dateOfBirth: child.dob,
+
+      currentVaccine: currentVaccine?.vaccineName || 'Not yet vaccinated',
+
+      nextDueVaccine: nextDue?.vaccineName || 'All done',
+
+      productName: currentVaccine?.productName || '',
+
+      manufacturer: currentVaccine?.manufacturer || '',
+
+      batchNumber: currentVaccine?.batchNumber || '',
+
+      manufactureDate: currentVaccine?.manufactureDate || '',
+
+      expiryDate: currentVaccine?.expiryDate || ''
+
+    });
+
+  });
+
+
+
+  res.json({ data: rows });
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+📄 
+
+index.js
+
+ – Main Server File
+
+
+
+const express = require('express');
+
+const bodyParser = require('body-parser');
+
+const adminConsoleRoutes = require('./routes/adminConsoleRoutes');
+
+
+
+const app = express();
+
+app.use(bodyParser.json());
+
+
+
+app.use('/api/admin', adminConsoleRoutes);
+
+
+
+const PORT = 5000;
+
+app.listen(PORT, () => {
+
+  console.log(`Admin Console API running at http://localhost:${PORT}`);
+
+});
+
+
+
+
+
+
+
+
+
+🧪 Sample API Call
+
+
+
+
+
+
+
+Endpoint: 
+
+GET /api/admin/patients-data
+
+
+
+
+
+
+
+Response:
+
+
+
+{
+
+  "data": [
+
+    {
+
+      "childName": "Baby of Anjali",
+
+      "dateOfBirth": "2025-06-10",
+
+      "currentVaccine": "BCG",
+
+      "nextDueVaccine": "Hep B",
+
+      "productName": "ImmuVax",
+
+      "manufacturer": "BioPharma",
+
+      "batchNumber": "BCG2025A",
+
+      "manufactureDate": "2025-05-01",
+
+      "expiryDate": "2026-05-01"
+
+    },
+
+    {
+
+      "childName": "Baby of Ramya",
+
+      "dateOfBirth": "2025-05-01",
+
+      "currentVaccine": "BCG",
+
+      "nextDueVaccine": "All done",
+
+      "productName": "SafeBCG",
+
+      "manufacturer": "MedLabs",
+
+      "batchNumber": "B2025M1",
+
+      "manufactureDate": "2025-04-01",
+
+      "expiryDate": "2026-04-01"
+
+    }
+
+  ]
+
+}
+
+
+
+
+
+
+
+
+
+✅ Next Step Options:
+
+
+
+
+
+Build ReactJS Admin Dashboard UI
+Export to Excel or CSV
+Add search / filter by doctor, hospital, vaccine type
+
+

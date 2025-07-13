@@ -1,0 +1,465 @@
+ Functional Flow Summary
+
+
+
+
+
+Only Admin can create doctor accounts.
+Admin must input:
+First Name, Middle Name (optional), Last Name
+Date of Birth, Certification Number
+Hospital Name
+Hospital Classification (Clinic, Specialty, Multispecialty)
+Years of Experience
+Email ID, Mobile Number
+
+Doctor will receive:
+Email & SMS with doctorId and a temporary password
+
+Doctor can log in using email or mobile + temporary password.
+Doctor can change their password after login.
+
+
+
+
+
+
+
+
+
+
+📦 Stack Used
+
+
+
+
+
+Express.js
+bcrypt for password hashing
+nodemailer (email)
+crypto for temp password generation
+uuid for doctorId
+In-memory DB (can be replaced with Mongo/Postgres)
+(SMS mocked via console)
+
+
+
+
+
+
+
+
+
+
+📁 Project Structure
+
+
+
+doctor-auth-admin/
+
+├── index.js
+
+├── db.js
+
+├── utils/
+
+│   ├── passwordUtils.js
+
+│   └── sendUtils.js
+
+├── routes/
+
+│   ├── adminRoutes.js
+
+│   └── doctorRoutes.js
+
+
+
+
+
+
+
+
+
+📄 db.js – In-Memory Store
+
+
+
+const doctors = {}; // doctorId: doctor object
+
+const doctorByEmail = {};
+
+const doctorByMobile = {};
+
+
+
+module.exports = { doctors, doctorByEmail, doctorByMobile };
+
+
+
+
+
+
+
+
+
+📄 utils/passwordUtils.js – Generate & Hash Passwords
+
+
+
+const bcrypt = require('bcrypt');
+
+const crypto = require('crypto');
+
+
+
+function generateTempPassword() {
+
+  return crypto.randomBytes(3).toString('hex'); // 6-char temp password
+
+}
+
+
+
+async function hashPassword(password) {
+
+  return await bcrypt.hash(password, 10);
+
+}
+
+
+
+async function comparePassword(raw, hashed) {
+
+  return await bcrypt.compare(raw, hashed);
+
+}
+
+
+
+module.exports = { generateTempPassword, hashPassword, comparePassword };
+
+
+
+
+
+
+
+
+
+📄 utils/sendUtils.js – Email & SMS Sender (mock)
+
+
+
+const nodemailer = require('nodemailer');
+
+
+
+const transporter = nodemailer.createTransport({
+
+  service: 'gmail',
+
+  auth: {
+
+    user: process.env.EMAIL_USER,
+
+    pass: process.env.EMAIL_PASS
+
+  }
+
+});
+
+
+
+async function sendEmail(to, subject, text) {
+
+  await transporter.sendMail({
+
+    from: process.env.EMAIL_USER,
+
+    to,
+
+    subject,
+
+    text
+
+  });
+
+}
+
+
+
+function sendSMS(mobile, message) {
+
+  console.log(`SMS to ${mobile}: ${message}`);
+
+}
+
+
+
+module.exports = { sendEmail, sendSMS };
+
+
+
+
+
+
+
+
+
+📄 routes/adminRoutes.js – Admin Creates Doctor Account
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+const { v4: uuidv4 } = require('uuid');
+
+const { generateTempPassword, hashPassword } = require('../utils/passwordUtils');
+
+const { sendEmail, sendSMS } = require('../utils/sendUtils');
+
+const { doctors, doctorByEmail, doctorByMobile } = require('../db');
+
+
+
+// POST /api/admin/create-doctor
+
+router.post('/create-doctor', async (req, res) => {
+
+  const {
+
+    firstName, middleName, lastName,
+
+    dob, certificationNumber,
+
+    hospitalName, hospitalType,
+
+    experienceYears,
+
+    email, mobile
+
+  } = req.body;
+
+
+
+  if (!firstName || !lastName || !dob || !certificationNumber || !hospitalName || !hospitalType || !experienceYears || !email || !mobile) {
+
+    return res.status(400).json({ error: 'Missing required fields' });
+
+  }
+
+
+
+  if (doctorByEmail[email] || doctorByMobile[mobile]) {
+
+    return res.status(409).json({ error: 'Doctor already exists' });
+
+  }
+
+
+
+  const doctorId = uuidv4();
+
+  const tempPassword = generateTempPassword();
+
+  const passwordHash = await hashPassword(tempPassword);
+
+
+
+  const doctor = {
+
+    doctorId,
+
+    name: `${firstName} ${middleName || ''} ${lastName}`.trim(),
+
+    dob,
+
+    certificationNumber,
+
+    hospitalName,
+
+    hospitalType,
+
+    experienceYears,
+
+    email,
+
+    mobile,
+
+    passwordHash
+
+  };
+
+
+
+  doctors[doctorId] = doctor;
+
+  doctorByEmail[email] = doctorId;
+
+  doctorByMobile[mobile] = doctorId;
+
+
+
+  const message = `Welcome Dr. ${firstName},\nYour Doctor ID: ${doctorId}\nTemp Password: ${tempPassword}`;
+
+
+
+  await sendEmail(email, 'Your Doctor Account Credentials', message);
+
+  sendSMS(mobile, message);
+
+
+
+  res.json({ message: 'Doctor account created and credentials sent.' });
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+📄 routes/doctorRoutes.js – Doctor Login & Change Password
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+const { doctorByEmail, doctorByMobile, doctors } = require('../db');
+
+const { comparePassword, hashPassword } = require('../utils/passwordUtils');
+
+
+
+// POST /api/doctor/login
+
+router.post('/login', async (req, res) => {
+
+  const { identifier, password } = req.body;
+
+  if (!identifier || !password) return res.status(400).json({ error: 'Missing identifier or password' });
+
+
+
+  const doctorId = doctorByEmail[identifier] || doctorByMobile[identifier];
+
+  const doctor = doctors[doctorId];
+
+
+
+  if (!doctor) return res.status(404).json({ error: 'Doctor not found' });
+
+
+
+  const match = await comparePassword(password, doctor.passwordHash);
+
+  if (!match) return res.status(401).json({ error: 'Invalid password' });
+
+
+
+  res.json({ message: 'Login successful', doctorId: doctor.doctorId });
+
+});
+
+
+
+// PATCH /api/doctor/change-password
+
+router.patch('/change-password', async (req, res) => {
+
+  const { doctorId, oldPassword, newPassword } = req.body;
+
+
+
+  const doctor = doctors[doctorId];
+
+  if (!doctor) return res.status(404).json({ error: 'Doctor not found' });
+
+
+
+  const match = await comparePassword(oldPassword, doctor.passwordHash);
+
+  if (!match) return res.status(401).json({ error: 'Incorrect old password' });
+
+
+
+  doctor.passwordHash = await hashPassword(newPassword);
+
+  res.json({ message: 'Password updated successfully' });
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+📄 index.js – Main App Entry
+
+
+
+require('dotenv').config();
+
+const express = require('express');
+
+const bodyParser = require('body-parser');
+
+const adminRoutes = require('./routes/adminRoutes');
+
+const doctorRoutes = require('./routes/doctorRoutes');
+
+
+
+const app = express();
+
+app.use(bodyParser.json());
+
+
+
+app.use('/api/admin', adminRoutes);
+
+app.use('/api/doctor', doctorRoutes);
+
+
+
+const PORT = 3000;
+
+app.listen(PORT, () => {
+
+  console.log(`Doctor Auth System running at http://localhost:${PORT}`);
+
+});
+
+
+
+
+
+
+
+
+
+✅ Sample Flow
+
+
+
+
+

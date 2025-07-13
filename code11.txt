@@ -1,0 +1,328 @@
+Doctor Console Columns:
+
+
+
+
+
+| Doctor Name | Date of Birth | Email ID | Mobile Number | Hospital Name | Hospital Classification | Certification Number | City | PIN Code |
+
+
+
+
+
+
+
+
+
+🛠️ Tech Stack:
+
+
+
+
+
+Node.js
+Express.js
+In-memory mock DB (can be upgraded to MongoDB/PostgreSQL)
+
+
+
+
+
+
+
+
+
+
+📁 Folder Structure:
+
+
+
+admin-doctor-console-api/
+
+├── index.js
+
+├── db.js
+
+└── routes/
+
+    └── adminDoctorConsoleRoutes.js
+
+
+
+
+
+
+
+
+
+📄 
+
+db.js
+
+ – Mock Doctor Database
+
+
+
+const doctors = {
+
+  "doc001": {
+
+    doctorId: "doc001",
+
+    name: "Dr. Anjali Menon",
+
+    dob: "1982-06-15",
+
+    email: "anjali@example.com",
+
+    mobile: "9876543210",
+
+    hospitalName: "Apollo Hospitals",
+
+    hospitalClassification: "Multispeciality",
+
+    certificationNumber: "CERT123456",
+
+    city: "Chennai",
+
+    pinCode: "600001"
+
+  },
+
+  "doc002": {
+
+    doctorId: "doc002",
+
+    name: "Dr. Kumar S",
+
+    dob: "1978-09-20",
+
+    email: "kumar@example.com",
+
+    mobile: "9876509876",
+
+    hospitalName: "City Care",
+
+    hospitalClassification: "Clinic",
+
+    certificationNumber: "CERT654321",
+
+    city: "Coimbatore",
+
+    pinCode: "641001"
+
+  }
+
+};
+
+
+
+module.exports = { doctors };
+
+
+
+
+
+
+
+
+
+📄 
+
+routes/adminDoctorConsoleRoutes.js
+
+ – Admin Console Route
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+const { doctors } = require('../db');
+
+
+
+// GET /api/admin/doctors
+
+router.get('/doctors', (req, res) => {
+
+  const rows = Object.values(doctors).map(doctor => ({
+
+    doctorName: doctor.name,
+
+    dob: doctor.dob,
+
+    email: doctor.email,
+
+    mobile: doctor.mobile,
+
+    hospitalName: doctor.hospitalName,
+
+    hospitalClassification: doctor.hospitalClassification,
+
+    certificationNumber: doctor.certificationNumber,
+
+    city: doctor.city,
+
+    pinCode: doctor.pinCode
+
+  }));
+
+
+
+  res.json({ doctors: rows });
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+📄 
+
+index.js
+
+ – App Entry Point
+
+
+
+const express = require('express');
+
+const bodyParser = require('body-parser');
+
+const adminDoctorConsoleRoutes = require('./routes/adminDoctorConsoleRoutes');
+
+
+
+const app = express();
+
+app.use(bodyParser.json());
+
+
+
+app.use('/api/admin', adminDoctorConsoleRoutes);
+
+
+
+const PORT = 5001;
+
+app.listen(PORT, () => {
+
+  console.log(`Admin Doctor Console API running at http://localhost:${PORT}`);
+
+});
+
+
+
+
+
+
+
+
+
+🧪 API Usage
+
+
+
+
+
+
+
+GET
+
+ 
+
+/api/admin/doctors
+
+
+
+
+
+
+
+✅ Response:
+
+
+
+{
+
+  "doctors": [
+
+    {
+
+      "doctorName": "Dr. Anjali Menon",
+
+      "dob": "1982-06-15",
+
+      "email": "anjali@example.com",
+
+      "mobile": "9876543210",
+
+      "hospitalName": "Apollo Hospitals",
+
+      "hospitalClassification": "Multispeciality",
+
+      "certificationNumber": "CERT123456",
+
+      "city": "Chennai",
+
+      "pinCode": "600001"
+
+    },
+
+    {
+
+      "doctorName": "Dr. Kumar S",
+
+      "dob": "1978-09-20",
+
+      "email": "kumar@example.com",
+
+      "mobile": "9876509876",
+
+      "hospitalName": "City Care",
+
+      "hospitalClassification": "Clinic",
+
+      "certificationNumber": "CERT654321",
+
+      "city": "Coimbatore",
+
+      "pinCode": "641001"
+
+    }
+
+  ]
+
+}
+
+
+
+
+
+
+
+
+
+🧩 Next Options
+
+
+
+
+
+Would you like:
+
+
+
+A React frontend table UI for this?
+Search, sort, and filter functionality?
+Export to Excel or PDF?

@@ -1,0 +1,469 @@
+Here’s a complete backend code (Node.js + Express) for the Doctor App Home Page Functionality, where:
+
+
+
+⸻
+
+
+
+✅ Features
+
+	1.	Doctor Home Page Behavior:
+
+	•	A “Create Child Profile” button appears if the child is new.
+
+	•	If the child already exists (searched via mobile number), the app:
+
+	•	Fetches the child’s profile
+
+	•	Displays growth history
+
+	•	Shows due vaccines
+
+
+
+⸻
+
+
+
+🛠 Project Structure
+
+
+
+doctor-app-home-api/
+
+├── index.js
+
+├── db.js
+
+├── utils/
+
+│   ├── vaccineUtils.js
+
+│   └── growthUtils.js
+
+└── routes/
+
+    └── doctorRoutes.js
+
+
+
+
+
+⸻
+
+
+
+📄 db.js – Mock Data Storage
+
+
+
+// db.js
+
+const children = {
+
+  // childId: childInfo
+
+};
+
+
+
+const childByMobile = {
+
+  // mobile: childId
+
+};
+
+
+
+const vaccineData = {
+
+  // childId: [vaccine entries]
+
+};
+
+
+
+const growthHistory = {
+
+  // childId: [growth records]
+
+};
+
+
+
+module.exports = { children, childByMobile, vaccineData, growthHistory };
+
+
+
+
+
+⸻
+
+
+
+📄 utils/vaccineUtils.js – Vaccine Schedule Generator
+
+
+
+function generateVaccineSchedule(dob) {
+
+  const baseSchedule = [
+
+    { name: "BCG", days: 0 },
+
+    { name: "Hep B", days: 1 },
+
+    { name: "Polio", days: 42 },
+
+    { name: "DTP", days: 42 },
+
+    { name: "MMR", days: 270 },
+
+    { name: "Typhoid", days: 365 }
+
+  ];
+
+
+
+  const dobDate = new Date(dob);
+
+
+
+  return baseSchedule.map(v => {
+
+    const dueDate = new Date(dobDate);
+
+    dueDate.setDate(dueDate.getDate() + v.days);
+
+    return {
+
+      vaccineName: v.name,
+
+      dueDate: dueDate.toISOString().split("T")[0],
+
+      vaccinatedDate: null,
+
+      productName: null,
+
+      batchNumber: null,
+
+      manufactureDate: null,
+
+      expiryDate: null,
+
+      doctorName: null,
+
+      hospitalName: null
+
+    };
+
+  });
+
+}
+
+
+
+function getDueVaccines(schedule) {
+
+  return schedule.filter(v => !v.vaccinatedDate);
+
+}
+
+
+
+module.exports = { generateVaccineSchedule, getDueVaccines };
+
+
+
+
+
+⸻
+
+
+
+📄 utils/growthUtils.js
+
+
+
+function getGrowthHistory(childId, growthHistory) {
+
+  return growthHistory[childId] || [];
+
+}
+
+
+
+module.exports = { getGrowthHistory };
+
+
+
+
+
+⸻
+
+
+
+📄 routes/doctorRoutes.js
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+const { children, childByMobile, vaccineData, growthHistory } = require('../db');
+
+const { generateVaccineSchedule, getDueVaccines } = require('../utils/vaccineUtils');
+
+const { getGrowthHistory } = require('../utils/growthUtils');
+
+const { v4: uuidv4 } = require('uuid');
+
+
+
+// Create child profile
+
+router.post('/child/create', (req, res) => {
+
+  const { name, dob, motherName, mobile } = req.body;
+
+
+
+  if (!name || !dob || !motherName || !mobile) {
+
+    return res.status(400).json({ error: "Missing required fields" });
+
+  }
+
+
+
+  if (childByMobile[mobile]) {
+
+    return res.status(400).json({ error: "Child already exists" });
+
+  }
+
+
+
+  const childId = uuidv4();
+
+
+
+  children[childId] = {
+
+    childId,
+
+    name,
+
+    dob,
+
+    motherName,
+
+    mobile
+
+  };
+
+
+
+  childByMobile[mobile] = childId;
+
+
+
+  // Create default vaccine schedule
+
+  vaccineData[childId] = generateVaccineSchedule(dob);
+
+  growthHistory[childId] = [];
+
+
+
+  res.json({ message: "Child profile created", childId });
+
+});
+
+
+
+// Fetch child data by mobile number
+
+router.get('/child/fetch/:mobile', (req, res) => {
+
+  const mobile = req.params.mobile;
+
+
+
+  const childId = childByMobile[mobile];
+
+  if (!childId || !children[childId]) {
+
+    return res.status(404).json({ error: "Child not found. Please create profile." });
+
+  }
+
+
+
+  const childInfo = children[childId];
+
+  const vaccines = vaccineData[childId] || [];
+
+  const dueVaccines = getDueVaccines(vaccines);
+
+  const growth = getGrowthHistory(childId, growthHistory);
+
+
+
+  res.json({
+
+    child: childInfo,
+
+    dueVaccines,
+
+    growthHistory: growth
+
+  });
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+⸻
+
+
+
+📄 index.js – Entry Point
+
+
+
+const express = require('express');
+
+const bodyParser = require('body-parser');
+
+const doctorRoutes = require('./routes/doctorRoutes');
+
+const app = express();
+
+
+
+app.use(bodyParser.json());
+
+app.use('/api/doctor', doctorRoutes);
+
+
+
+const PORT = 3000;
+
+app.listen(PORT, () => {
+
+  console.log(`Doctor App Home API running at http://localhost:${PORT}`);
+
+});
+
+
+
+
+
+⸻
+
+
+
+🧪 Sample Usage
+
+
+
+🆕 POST /api/doctor/child/create
+
+
+
+{
+
+  "name": "",
+
+  "dob": "2025-07-01",
+
+  "motherName": "Anjali",
+
+  "mobile": "9876543210"
+
+}
+
+
+
+Response:
+
+
+
+{ "message": "Child profile created", "childId": "abc-123-uuid" }
+
+
+
+
+
+⸻
+
+
+
+🔍 GET /api/doctor/child/fetch/9876543210
+
+
+
+{
+
+  "child": {
+
+    "childId": "abc-123-uuid",
+
+    "name": "Baby of Anjali",
+
+    "dob": "2025-07-01",
+
+    "motherName": "Anjali",
+
+    "mobile": "9876543210"
+
+  },
+
+  "dueVaccines": [
+
+    { "vaccineName": "BCG", "dueDate": "2025-07-01", ... },
+
+    ...
+
+  ],
+
+  "growthHistory": []
+
+}
+
+
+
+
+
+⸻
+
+
+
+✅ What’s Ready
+
+	•	Doctor sees “Create” if not found by mobile
+
+	•	Doctor fetches existing child details and due vaccines
+
+
+
+⸻
+
+
+
+✅ Next Options:
+
+	•	Add auth (JWT) for doctor
+
+	•	Link this to the vaccination update system
+
+	•	Store data in MongoDB or Firebase

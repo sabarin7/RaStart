@@ -1,0 +1,450 @@
+Scenario Features
+
+
+
+
+
+Every time parents visit:
+Doctor records: weight, height, headCircumference along with date
+
+This data is stored in the Doctor App
+The Customer App:
+Fetches this data
+Shows the difference from birth measurements
+Color codes:
+🟢 Green = growth
+🔴 Red = degrowth
+⚪️ Grey = no change
+
+
+
+
+
+
+
+
+
+
+
+
+📁 Project Structure (Shared for Doctor and Customer)
+
+
+
+growth-tracking-api/
+
+│
+
+├── index.js
+
+├── db.js
+
+├── utils/
+
+│   └── growthUtils.js
+
+└── routes/
+
+    ├── doctorRoutes.js
+
+    └── customerRoutes.js
+
+
+
+
+
+
+
+
+
+📄 File: 
+
+db.js
+
+ – Mock Database
+
+
+
+// db.js
+
+const children = {
+
+  "child001": {
+
+    name: "Baby of Anjali",
+
+    dob: "2025-06-10",
+
+    motherName: "Anjali",
+
+    birthStats: {
+
+      weight: 3.2,
+
+      height: 50,
+
+      headCircumference: 34
+
+    }
+
+  }
+
+};
+
+
+
+const growthRecords = {
+
+  // Example structure:
+
+  // childId: [{ date, weight, height, headCircumference }]
+
+};
+
+
+
+module.exports = { children, growthRecords };
+
+
+
+
+
+
+
+
+
+📄 File: 
+
+utils/growthUtils.js
+
+ – Growth Comparison Logic
+
+
+
+function calculateGrowthDiff(birthStats, latestStats) {
+
+  const result = {};
+
+
+
+  for (let key of ['weight', 'height', 'headCircumference']) {
+
+    const birth = birthStats[key];
+
+    const current = latestStats[key];
+
+
+
+    if (current > birth) {
+
+      result[key] = { diff: (current - birth).toFixed(2), status: 'growth', color: 'green' };
+
+    } else if (current < birth) {
+
+      result[key] = { diff: (current - birth).toFixed(2), status: 'degrowth', color: 'red' };
+
+    } else {
+
+      result[key] = { diff: 0, status: 'unchanged', color: 'grey' };
+
+    }
+
+  }
+
+
+
+  return result;
+
+}
+
+
+
+module.exports = { calculateGrowthDiff };
+
+
+
+
+
+
+
+
+
+📄 File: 
+
+routes/doctorRoutes.js
+
+ – Doctor API
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+const { children, growthRecords } = require('../db');
+
+
+
+// POST: Record growth
+
+router.post('/record-growth/:childId', (req, res) => {
+
+  const { childId } = req.params;
+
+  const { date, weight, height, headCircumference } = req.body;
+
+
+
+  if (!children[childId]) return res.status(404).json({ error: 'Child not found' });
+
+
+
+  const entry = { date, weight, height, headCircumference };
+
+
+
+  if (!growthRecords[childId]) {
+
+    growthRecords[childId] = [];
+
+  }
+
+
+
+  growthRecords[childId].push(entry);
+
+
+
+  res.json({ message: 'Growth data recorded', entry });
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+📄 File: 
+
+routes/customerRoutes.js
+
+ – Customer API
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+const { children, growthRecords } = require('../db');
+
+const { calculateGrowthDiff } = require('../utils/growthUtils');
+
+
+
+// GET: View growth data & difference
+
+router.get('/child/:childId/growth-summary', (req, res) => {
+
+  const { childId } = req.params;
+
+
+
+  const child = children[childId];
+
+  const records = growthRecords[childId];
+
+
+
+  if (!child || !records || records.length === 0) {
+
+    return res.status(404).json({ error: 'No growth records found' });
+
+  }
+
+
+
+  const latest = records[records.length - 1];
+
+  const diff = calculateGrowthDiff(child.birthStats, latest);
+
+
+
+  res.json({
+
+    childId,
+
+    childName: child.name,
+
+    dob: child.dob,
+
+    birthStats: child.birthStats,
+
+    latestStats: latest,
+
+    growthDifference: diff
+
+  });
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+📄 File: 
+
+index.js
+
+ – Main App
+
+
+
+const express = require('express');
+
+const bodyParser = require('body-parser');
+
+const doctorRoutes = require('./routes/doctorRoutes');
+
+const customerRoutes = require('./routes/customerRoutes');
+
+
+
+const app = express();
+
+app.use(bodyParser.json());
+
+
+
+app.use('/api/doctor', doctorRoutes);
+
+app.use('/api/customer', customerRoutes);
+
+
+
+const PORT = 5000;
+
+app.listen(PORT, () => {
+
+  console.log(`Growth Tracker API running on http://localhost:${PORT}`);
+
+});
+
+
+
+
+
+
+
+
+
+🧪 Sample Flow
+
+
+
+
+
+
+
+👨‍⚕️ Doctor enters growth (POST 
+
+/api/doctor/record-growth/child001
+
+)
+
+
+
+{
+
+  "date": "2025-08-10",
+
+  "weight": 5.1,
+
+  "height": 58,
+
+  "headCircumference": 36
+
+}
+
+
+
+
+
+
+
+
+
+👨‍👩‍👧 Customer views growth summary (GET 
+
+/api/customer/child/child001/growth-summary
+
+)
+
+
+
+{
+
+  "childId": "child001",
+
+  "childName": "Baby of Anjali",
+
+  "dob": "2025-06-10",
+
+  "birthStats": {
+
+    "weight": 3.2,
+
+    "height": 50,
+
+    "headCircumference": 34
+
+  },
+
+  "latestStats": {
+
+    "date": "2025-08-10",
+
+    "weight": 5.1,
+
+    "height": 58,
+
+    "headCircumference": 36
+
+  },
+
+  "growthDifference": {
+
+    "weight": { "diff": "1.90", "status": "growth", "color": "green" },
+
+    "height": { "diff": "8.00", "status": "growth", "color": "green" },
+
+    "headCircumference": { "diff": "2.00", "status": "growth", "color": "green" }
+
+  }
+
+}
+
+
+
+
+
+
+
+
+
+✅ Next Steps / UI Suggestions

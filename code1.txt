@@ -1,0 +1,349 @@
+Here’s a basic Node.js API implementation for a sign-in flow where the user can use either mobile number or email address, receive an OTP, and verify it to complete authentication.
+
+
+
+We’ll use:
+
+
+
+Express – to handle routes.
+Nodemailer – to send OTP via email.
+Twilio or Fast2SMS (optional) – to send OTP via mobile (can mock this).
+OTP Generator – to generate 6-digit OTP.
+Memory store (in production, use Redis or database).
+
+
+
+
+
+
+
+
+
+
+🔧 1. Setup Your Project
+
+
+
+mkdir otp-auth-api
+
+cd otp-auth-api
+
+npm init -y
+
+npm install express nodemailer body-parser otp-generator dotenv
+
+
+
+
+
+
+
+
+
+📁 2. Project Structure
+
+
+
+otp-auth-api/
+
+│
+
+├── index.js
+
+├── .env
+
+└── otpStore.js
+
+
+
+
+
+
+
+
+
+🧠 3. 
+
+otpStore.js
+
+ – (Temporary in-memory OTP storage)
+
+
+
+// otpStore.js
+
+const otpMap = new Map();
+
+
+
+function saveOTP(identifier, otp) {
+
+    otpMap.set(identifier, { otp, expiresAt: Date.now() + 5 * 60 * 1000 }); // 5 mins
+
+}
+
+
+
+function verifyOTP(identifier, inputOtp) {
+
+    const data = otpMap.get(identifier);
+
+    if (!data) return false;
+
+
+
+    const { otp, expiresAt } = data;
+
+    if (Date.now() > expiresAt) return false;
+
+
+
+    return otp === inputOtp;
+
+}
+
+
+
+module.exports = { saveOTP, verifyOTP };
+
+
+
+
+
+
+
+
+
+📄 4. 
+
+.env
+
+ (create this file for email setup)
+
+
+
+EMAIL_USER=your-email@gmail.com
+
+EMAIL_PASS=your-password-or-app-password
+
+
+
+
+
+
+
+
+
+🧠 5. 
+
+index.js
+
+ – Core logic for API
+
+
+
+require('dotenv').config();
+
+const express = require('express');
+
+const bodyParser = require('body-parser');
+
+const nodemailer = require('nodemailer');
+
+const otpGenerator = require('otp-generator');
+
+const { saveOTP, verifyOTP } = require('./otpStore');
+
+
+
+const app = express();
+
+app.use(bodyParser.json());
+
+
+
+const PORT = 3000;
+
+
+
+// Email transporter
+
+const transporter = nodemailer.createTransport({
+
+    service: 'gmail',
+
+    auth: {
+
+        user: process.env.EMAIL_USER,
+
+        pass: process.env.EMAIL_PASS,
+
+    },
+
+});
+
+
+
+// Helper to send OTP
+
+async function sendOtpEmail(email, otp) {
+
+    await transporter.sendMail({
+
+        from: `"OTP Auth" <${process.env.EMAIL_USER}>`,
+
+        to: email,
+
+        subject: 'Your OTP Code',
+
+        text: `Your OTP is ${otp}`,
+
+    });
+
+}
+
+
+
+// Mock mobile OTP (In production use Twilio or SMS API)
+
+async function sendOtpSMS(mobile, otp) {
+
+    console.log(`Mock SMS sent to ${mobile}: OTP is ${otp}`);
+
+}
+
+
+
+// Step 1: Request OTP
+
+app.post('/auth/request-otp', async (req, res) => {
+
+    const { identifier } = req.body;
+
+
+
+    if (!identifier) return res.status(400).json({ error: 'Mobile or email required' });
+
+
+
+    const otp = otpGenerator.generate(6, { upperCase: false, specialChars: false, alphabets: false });
+
+
+
+    saveOTP(identifier, otp);
+
+
+
+    if (/^\d{10}$/.test(identifier)) {
+
+        await sendOtpSMS(identifier, otp); // mobile
+
+    } else if (/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(identifier)) {
+
+        await sendOtpEmail(identifier, otp); // email
+
+    } else {
+
+        return res.status(400).json({ error: 'Invalid identifier format' });
+
+    }
+
+
+
+    res.json({ message: 'OTP sent successfully' });
+
+});
+
+
+
+// Step 2: Verify OTP
+
+app.post('/auth/verify-otp', (req, res) => {
+
+    const { identifier, otp } = req.body;
+
+
+
+    if (!identifier || !otp) return res.status(400).json({ error: 'Identifier and OTP are required' });
+
+
+
+    const isValid = verifyOTP(identifier, otp);
+
+
+
+    if (!isValid) return res.status(401).json({ error: 'Invalid or expired OTP' });
+
+
+
+    res.json({ message: 'User authenticated successfully', token: 'mock-jwt-token' });
+
+});
+
+
+
+app.listen(PORT, () => {
+
+    console.log(`Server running at http://localhost:${PORT}`);
+
+});
+
+
+
+
+
+
+
+
+
+✅ Sample Request Flow
+
+
+
+
+
+
+
+POST /auth/request-otp
+
+
+
+{
+
+  "identifier": "9876543210" // or "user@example.com"
+
+}
+
+
+
+POST /auth/verify-otp
+
+
+
+{
+
+  "identifier": "9876543210",
+
+  "otp": "123456"
+
+}
+
+
+
+
+
+
+
+
+
+🚀 Next Steps for Production
+
+
+
+
+
+Use Redis instead of in-memory map.
+Replace mock SMS with Twilio, Fast2SMS, etc.
+Add JWT token generation after successful verification.
+Rate-limit OTP requests.

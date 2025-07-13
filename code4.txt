@@ -1,0 +1,471 @@
+✅ Vaccination Schedule (Customer App)
+
+
+
+
+
+
+
+🔐 Key Points:
+
+
+
+
+
+Parents can only view the vaccination schedule.
+Vaccines are auto-scheduled based on child’s Date of Birth.
+Fields like productName, batchNumber, manufactureDate, expiryDate, vaccinatedDate, doctorName, hospitalName are filled by Doctor App.
+If vaccinated date ≠ due date, then next dose’s due date shifts accordingly.
+Everything is read-only for customers.
+
+
+
+
+
+
+
+
+
+
+📁 Project Structure
+
+
+
+customer-app-api/
+
+│
+
+├── index.js
+
+├── vaccineUtils.js
+
+├── db.js (mock db)
+
+└── routes/
+
+    └── vaccineRoutes.js
+
+
+
+
+
+
+
+
+
+🧠 File: 
+
+vaccineUtils.js
+
+ – vaccine schedule logic
+
+
+
+// vaccineUtils.js
+
+const predefinedVaccines = [
+
+  { name: "BCG", scheduleAfterDays: 0 },
+
+  { name: "Hepatitis B", scheduleAfterDays: 1 },
+
+  { name: "DTP", scheduleAfterDays: 42 },
+
+  { name: "Polio", scheduleAfterDays: 42 },
+
+  { name: "MMR", scheduleAfterDays: 270 },
+
+  { name: "Typhoid", scheduleAfterDays: 365 }
+
+];
+
+
+
+function generateVaccineSchedule(dob) {
+
+  const dobDate = new Date(dob);
+
+  return predefinedVaccines.map(vaccine => {
+
+    const dueDate = new Date(dobDate);
+
+    dueDate.setDate(dobDate.getDate() + vaccine.scheduleAfterDays);
+
+    return {
+
+      vaccineName: vaccine.name,
+
+      dueDate: dueDate.toISOString().split('T')[0],
+
+      productName: null,
+
+      batchNumber: null,
+
+      manufactureDate: null,
+
+      expiryDate: null,
+
+      vaccinatedDate: null,
+
+      doctorName: null,
+
+      hospitalName: null
+
+    };
+
+  });
+
+}
+
+
+
+function adjustNextDueDates(schedule) {
+
+  for (let i = 1; i < schedule.length; i++) {
+
+    const prev = schedule[i - 1];
+
+    const curr = schedule[i];
+
+
+
+    if (prev.vaccinatedDate && prev.vaccinatedDate !== prev.dueDate) {
+
+      const diffDays = Math.floor(
+
+        (new Date(prev.vaccinatedDate) - new Date(prev.dueDate)) / (1000 * 60 * 60 * 24)
+
+      );
+
+      const newDueDate = new Date(curr.dueDate);
+
+      newDueDate.setDate(newDueDate.getDate() + diffDays);
+
+      curr.dueDate = newDueDate.toISOString().split('T')[0];
+
+    }
+
+  }
+
+  return schedule;
+
+}
+
+
+
+module.exports = { generateVaccineSchedule, adjustNextDueDates };
+
+
+
+
+
+
+
+
+
+💾 File: 
+
+db.js
+
+ – mock database
+
+
+
+// db.js
+
+const childVaccinationData = {}; // key: childId, value: schedule array
+
+const children = {
+
+  "child001": { dob: "2025-06-10", motherName: "Anjali", name: "Baby of Anjali" },
+
+  "child002": { dob: "2023-07-20", motherName: "Priya", name: "Aarav" }
+
+};
+
+
+
+module.exports = { childVaccinationData, children };
+
+
+
+
+
+
+
+
+
+📁 File: 
+
+routes/vaccineRoutes.js
+
+ – API Routes
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+const { childVaccinationData, children } = require('../db');
+
+const { generateVaccineSchedule, adjustNextDueDates } = require('../vaccineUtils');
+
+
+
+// GET vaccine schedule (read-only)
+
+router.get('/vaccine-schedule/:childId', (req, res) => {
+
+  const childId = req.params.childId;
+
+  const child = children[childId];
+
+
+
+  if (!child) {
+
+    return res.status(404).json({ error: 'Child not found' });
+
+  }
+
+
+
+  // If schedule not generated yet, create it
+
+  if (!childVaccinationData[childId]) {
+
+    childVaccinationData[childId] = generateVaccineSchedule(child.dob);
+
+  }
+
+
+
+  const finalSchedule = adjustNextDueDates(childVaccinationData[childId]);
+
+
+
+  res.json({
+
+    childId,
+
+    childName: child.name,
+
+    dob: child.dob,
+
+    vaccineSchedule: finalSchedule
+
+  });
+
+});
+
+
+
+// This POST endpoint is just for testing — in production, Doctor App should update this
+
+router.post('/doctor/update-vaccine/:childId/:vaccineName', (req, res) => {
+
+  const { childId, vaccineName } = req.params;
+
+  const {
+
+    productName, batchNumber, manufactureDate, expiryDate,
+
+    vaccinatedDate, doctorName, hospitalName
+
+  } = req.body;
+
+
+
+  const schedule = childVaccinationData[childId];
+
+  if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
+
+
+
+  const vaccine = schedule.find(v => v.vaccineName === vaccineName);
+
+  if (!vaccine) return res.status(404).json({ error: 'Vaccine not found' });
+
+
+
+  // Update fields (doctor access only)
+
+  vaccine.productName = productName;
+
+  vaccine.batchNumber = batchNumber;
+
+  vaccine.manufactureDate = manufactureDate;
+
+  vaccine.expiryDate = expiryDate;
+
+  vaccine.vaccinatedDate = vaccinatedDate;
+
+  vaccine.doctorName = doctorName;
+
+  vaccine.hospitalName = hospitalName;
+
+
+
+  res.json({ message: 'Vaccine data updated', vaccine });
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+📁 File: 
+
+index.js
+
+ – App Entry Point
+
+
+
+const express = require('express');
+
+const bodyParser = require('body-parser');
+
+const vaccineRoutes = require('./routes/vaccineRoutes');
+
+
+
+const app = express();
+
+app.use(bodyParser.json());
+
+
+
+app.use('/api', vaccineRoutes);
+
+
+
+const PORT = 3000;
+
+app.listen(PORT, () => {
+
+  console.log(`Customer App API running at http://localhost:${PORT}`);
+
+});
+
+
+
+
+
+
+
+
+
+📄 Example Usage
+
+
+
+
+
+
+
+✅ GET 
+
+/api/vaccine-schedule/child001
+
+
+
+{
+
+  "childId": "child001",
+
+  "childName": "Baby of Anjali",
+
+  "dob": "2025-06-10",
+
+  "vaccineSchedule": [
+
+    {
+
+      "vaccineName": "BCG",
+
+      "dueDate": "2025-06-10",
+
+      "productName": null,
+
+      "batchNumber": null,
+
+      "manufactureDate": null,
+
+      "expiryDate": null,
+
+      "vaccinatedDate": null,
+
+      "doctorName": null,
+
+      "hospitalName": null
+
+    },
+
+    ...
+
+  ]
+
+}
+
+
+
+
+
+
+
+
+
+✅ Doctor POST 
+
+/api/doctor/update-vaccine/child001/MMR
+
+
+
+{
+
+  "productName": "MMR-Vax",
+
+  "batchNumber": "B202507",
+
+  "manufactureDate": "2025-06-01",
+
+  "expiryDate": "2027-06-01",
+
+  "vaccinatedDate": "2026-03-15",
+
+  "doctorName": "Dr. Kumar",
+
+  "hospitalName": "Apollo Hospitals"
+
+}
+
+This auto-updates the MMR vaccine and shifts next due dates if needed.
+
+
+
+
+
+
+
+
+
+🛡️ Production Considerations
+
+
+
+
+
+Add authentication (JWT) for Doctor App
+Use real database (MongoDB/PostgreSQL)
+Add logging and versioning of schedule
+Notify parents of upcoming due dates

@@ -1,0 +1,314 @@
+Here’s a Node.js + Express API implementation for Doctors opening a child account, with the following logic:
+
+
+
+
+
+
+
+
+
+✅ Requirements:
+
+
+
+
+
+Doctors must enter:
+childName (editable, auto-filled if under 1 year)
+dob
+motherName
+weight, height, headCircumference
+
+If the child is less than 1 year old and childName is missing, it defaults to “Baby of {motherName}”
+This default name can be changed later by either doctor or parent
+
+
+
+
+
+
+
+
+
+
+📁 File: 
+
+childRegistration.js
+
+
+
+const express = require('express');
+
+const router = express.Router();
+
+
+
+// Helper: Calculate age in months
+
+function getAgeInMonths(dob) {
+
+  const birthDate = new Date(dob);
+
+  const today = new Date();
+
+  let months = (today.getFullYear() - birthDate.getFullYear()) * 12;
+
+  months -= birthDate.getMonth();
+
+  months += today.getMonth();
+
+  return months;
+
+}
+
+
+
+// Route: POST /register-child
+
+router.post('/register-child', (req, res) => {
+
+  const {
+
+    childName,
+
+    dob,
+
+    motherName,
+
+    weight,
+
+    height,
+
+    headCircumference
+
+  } = req.body;
+
+
+
+  // Basic validation
+
+  if (!dob || !motherName || !weight || !height || !headCircumference) {
+
+    return res.status(400).json({ error: 'Missing required fields' });
+
+  }
+
+
+
+  // Age calculation
+
+  const ageInMonths = getAgeInMonths(dob);
+
+  let finalChildName = childName;
+
+
+
+  // Auto-fill if baby is under 12 months and name not provided
+
+  if ((!childName || childName.trim() === '') && ageInMonths < 12) {
+
+    finalChildName = `Baby of ${motherName}`;
+
+  }
+
+
+
+  const childData = {
+
+    childName: finalChildName,
+
+    dob,
+
+    ageInMonths,
+
+    motherName,
+
+    weight,
+
+    height,
+
+    headCircumference,
+
+    editable: true // doctor/parent can edit name later
+
+  };
+
+
+
+  // Normally save to DB here
+
+
+
+  res.status(200).json({
+
+    message: 'Child account registered successfully',
+
+    child: childData
+
+  });
+
+});
+
+
+
+module.exports = router;
+
+
+
+
+
+
+
+
+
+📁 File: 
+
+index.js
+
+
+
+const express = require('express');
+
+const bodyParser = require('body-parser');
+
+const childRegistrationRoute = require('./childRegistration');
+
+
+
+const app = express();
+
+app.use(bodyParser.json());
+
+
+
+app.use('/api', childRegistrationRoute);
+
+
+
+const PORT = 3000;
+
+app.listen(PORT, () => {
+
+  console.log(`Server running on http://localhost:${PORT}`);
+
+});
+
+
+
+
+
+
+
+
+
+📄 Sample Request to 
+
+POST /api/register-child
+
+
+
+
+
+
+
+🍼 Newborn (No name given yet):
+
+
+
+{
+
+  "childName": "",
+
+  "dob": "2025-06-10",
+
+  "motherName": "Anjali",
+
+  "weight": 3.2,
+
+  "height": 50,
+
+  "headCircumference": 34
+
+}
+
+
+
+✅ Response:
+
+
+
+{
+
+  "message": "Child account registered successfully",
+
+  "child": {
+
+    "childName": "Baby of Anjali",
+
+    "dob": "2025-06-10",
+
+    "ageInMonths": 1,
+
+    "motherName": "Anjali",
+
+    "weight": 3.2,
+
+    "height": 50,
+
+    "headCircumference": 34,
+
+    "editable": true
+
+  }
+
+}
+
+
+
+
+
+
+
+
+
+👶 Older Child (Name given):
+
+
+
+{
+
+  "childName": "Aarav",
+
+  "dob": "2023-05-10",
+
+  "motherName": "Priya",
+
+  "weight": 10.5,
+
+  "height": 80,
+
+  "headCircumference": 46
+
+}
+
+
+
+
+
+
+
+
+
+💬 Optional Improvements:
+
+
+
+
+
+Add database storage (e.g., MongoDB)
+Add authentication for doctors
+Allow PATCH endpoint for parents to update child name
+Log creation source (doctor vs parent)
+
+
